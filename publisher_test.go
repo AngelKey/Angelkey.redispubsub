@@ -45,7 +45,8 @@ func TestPublisherBasic(t *testing.T) {
 
 	// subscribe to all channels
 	for _, channel := range channels {
-		if err := <-s.Subscribe(channel); err != nil {
+		_, errChan := s.Subscribe(channel)
+		if err := <-errChan; err != nil {
 			t.Fatal(err)
 		}
 	}

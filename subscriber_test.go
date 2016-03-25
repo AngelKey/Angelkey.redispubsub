@@ -32,7 +32,7 @@ func newTestSubHandler(t *testing.T) *testSubHandler {
 }
 
 func (h *testSubHandler) OnSubscriberConnect(s Subscriber,
-	conn redis.Conn, address string, slot int) {
+	conn redis.Conn, address string, slot int, token ConnectionToken) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 	h.connections++
@@ -122,10 +122,12 @@ func TestSubscriberBasic(t *testing.T) {
 	h := newTestSubHandler(t)
 	s := NewRedisSubscriber("localhost:6379", h, 0)
 
-	if err := <-s.Subscribe("foo"); err != nil {
+	token, errChan := s.Subscribe("foo")
+	if err := <-errChan; err != nil {
 		t.Fatal(err)
 	}
-	if err := <-s.Subscribe("foo"); err != nil {
+	token, errChan = s.Subscribe("foo")
+	if err := <-errChan; err != nil {
 		t.Fatal(err)
 	}
 	// should only subscribe once
@@ -133,7 +135,7 @@ func TestSubscriberBasic(t *testing.T) {
 		t.Fatalf("Exepected 1 subscription, got %d", h.subscribeCount)
 	}
 
-	if count, err := s.Unsubscribe("foo", 1); err != nil {
+	if count, err := s.Unsubscribe("foo", token, 1); err != nil {
 		t.Fatal(err)
 	} else {
 		// expect one more subscriber left
@@ -141,7 +143,7 @@ func TestSubscriberBasic(t *testing.T) {
 			t.Fatalf("Exepected 1 subscriber, got %d", count)
 		}
 	}
-	if count, err := s.Unsubscribe("foo", 1); err != nil {
+	if count, err := s.Unsubscribe("foo", token, 1); err != nil {
 		t.Fatal(err)
 	} else {
 		// no more expected
@@ -150,14 +152,15 @@ func TestSubscriberBasic(t *testing.T) {
 		}
 	}
 	// shouldn't be subscribed anymore
-	if _, err := s.Unsubscribe("foo", 1); err != ErrNotSubscribed {
+	if _, err := s.Unsubscribe("foo", token, 1); err != ErrNotSubscribed {
 		t.Fatalf("Expected ErrNotSubscribed, got: %v", err)
 	}
 
 	h.waitForUnsubscribes(1)
 
 	// subscribe to foo again
-	if err := <-s.Subscribe("foo"); err != nil {
+	_, errChan = s.Subscribe("foo")
+	if err := <-errChan; err != nil {
 		t.Fatal(err)
 	}
 	// expect 2 subscribes now
@@ -166,7 +169,8 @@ func TestSubscriberBasic(t *testing.T) {
 	}
 
 	// subscribe to bar
-	if err := <-s.Subscribe("bar"); err != nil {
+	_, errChan = s.Subscribe("bar")
+	if err := <-errChan; err != nil {
 		t.Fatal(err)
 	}
 	// expect 3 subscribes now
