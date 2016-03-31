@@ -52,7 +52,9 @@ type redisPublisher struct {
 	wg        sync.WaitGroup
 }
 
-// NewRedisPublisher instantiates a Publisher implementation backed by Redis.
+// NewRedisPublisher instantiates a Publisher implementation backed by
+// Redis.  If poolSize is 0, DefaultPublisherPoolSize is used.  If
+// bufferSize if 0, DefaultPublishedBufferSize is used.
 func NewRedisPublisher(address string, handler PublicationHandler, poolSize, bufferSize int) Publisher {
 	if poolSize == 0 {
 		poolSize = DefaultPublisherPoolSize
@@ -97,14 +99,15 @@ func NewRedisPublisher(address string, handler PublicationHandler, poolSize, buf
 		closeChan: closeChan,
 	}
 	// start the workers
+	p.wg.Add(poolSize)
 	for i := 0; i < poolSize; i++ {
-		p.wg.Add(1)
 		go p.publishLoop()
 	}
 	return p
 }
 
 func (p *redisPublisher) publishLoop() {
+	defer p.wg.Done()
 	for m := range p.messages {
 		func() {
 			conn := p.pool.Get()
@@ -114,7 +117,6 @@ func (p *redisPublisher) publishLoop() {
 			}
 		}()
 	}
-	p.wg.Done()
 }
 
 // Publish implements the Publisher interface.
