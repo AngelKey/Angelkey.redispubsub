@@ -25,6 +25,9 @@ const DefaultPublisherBufferSize = 1 << 20
 type Publisher interface {
 	// Publish is called to publish the given message to the given channel.
 	Publish(channel string, data []byte)
+	// PublishBatch is called to synchronously publish a batch of messages.
+	// The returned error is the result of the FLUSH command.
+	PublishBatch(channels []string, data [][]byte) error
 	// Shutdown is called to synchronously stop all publishing activity.
 	Shutdown()
 }
@@ -126,6 +129,21 @@ func (p *redisPublisher) Publish(channel string, data []byte) {
 	default:
 		p.handler.OnPublishError(ErrPublishWouldBlock, channel, data)
 	}
+}
+
+// PublishBatch implements the Publisher interface.
+func (p *redisPublisher) PublishBatch(channels []string, data [][]byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+	conn := p.pool.Get()
+	defer conn.Close()
+	for i, channel := range channels {
+		if err := conn.Send("PUBLISH", channel, data[i]); err != nil {
+			p.handler.OnPublishError(err, channel, data[i])
+		}
+	}
+	return conn.Flush()
 }
 
 // Shutdown implements the Publisher interface.
