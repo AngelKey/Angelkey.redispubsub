@@ -20,6 +20,7 @@ type testSubHandler struct {
 	messages           map[string]map[string]struct{}
 	messageChan        chan struct{}
 	unsubscribeChan    chan struct{}
+	connectedChan      chan bool
 }
 
 func newTestSubHandler(t *testing.T) *testSubHandler {
@@ -28,6 +29,7 @@ func newTestSubHandler(t *testing.T) *testSubHandler {
 		messages:        make(map[string]map[string]struct{}),
 		messageChan:     make(chan struct{}, 10000),
 		unsubscribeChan: make(chan struct{}, 10000),
+		connectedChan:   make(chan bool, 1),
 	}
 }
 
@@ -35,7 +37,9 @@ func (h *testSubHandler) OnSubscriberConnect(s Subscriber,
 	conn redis.Conn, address string, slot int, token ConnectionToken) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
-	h.connections++
+	if h.connections++; h.connections == DefaultSubscriberPoolSize {
+		h.connectedChan <- true
+	}
 }
 
 func (h *testSubHandler) OnSubscriberConnectError(err error, nextTime time.Duration) {
@@ -118,9 +122,22 @@ func (h *testSubHandler) waitForUnsubscribes(count int) {
 	}
 }
 
+func (h *testSubHandler) waitUntilConnected() {
+	select {
+	case <-h.connectedChan:
+		return
+	case <-time.After(30 * time.Second):
+		h.t.Fatal("Timed out waiting for connection")
+	}
+}
+
 func TestSubscriberBasic(t *testing.T) {
 	h := newTestSubHandler(t)
 	s := NewRedisSubscriber("localhost:6379", h, 0)
+	defer s.Shutdown()
+
+	// wait for connection
+	h.waitUntilConnected()
 
 	token, errChan := s.Subscribe("foo")
 	if err := <-errChan; err != nil {
@@ -186,6 +203,4 @@ func TestSubscriberBasic(t *testing.T) {
 	if h.connections != DefaultSubscriberPoolSize {
 		t.Fatalf("Expected %d connections, got: %d", DefaultSubscriberPoolSize, h.connections)
 	}
-
-	s.Shutdown()
 }
