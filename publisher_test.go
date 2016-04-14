@@ -42,6 +42,9 @@ func TestPublisherBasic(t *testing.T) {
 	p := NewRedisPublisher("localhost:6379", ph, 0, 0)
 	defer p.Shutdown()
 
+	// wait for connection
+	sh.waitUntilConnected()
+
 	count := 100
 	channels := []string{"foo", "bar", "hi"}
 
@@ -92,6 +95,9 @@ func TestPublisherBatch(t *testing.T) {
 	ph := &testPubHandler{t: t}
 	p := NewRedisPublisher("localhost:6379", ph, 1, 0)
 	defer p.Shutdown()
+
+	// wait for connection
+	sh.waitUntilConnected()
 
 	count := 100
 	channels := []string{"foo", "bar", "hi"}
