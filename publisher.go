@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff"
 	"github.com/garyburd/redigo/redis"
+	"github.com/keybase/backoff"
 )
 
 // ErrPublishWouldBlock is returned when the outgoing message buffer is full.

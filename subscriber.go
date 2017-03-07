@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff"
 	"github.com/garyburd/redigo/redis"
+	"github.com/keybase/backoff"
 	"golang.org/x/net/context"
 )
 
